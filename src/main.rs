@@ -6,9 +6,10 @@ use dla::{Dla, Vec3};
 
 fn main() -> io::Result<()> {
     // let iterations = 10_000_000;
-    let iterations = 1_000;
+    let iterations = 100_000;
     let c: Rgb = [0.1, 0.3, 0.1];
     let spawn_offset = 10;
+    let attraction_radius = 16;
 
     let seeds = vec![Vec3::new(0, 0, 0)];
 
@@ -24,7 +25,7 @@ fn main() -> io::Result<()> {
     //     ]);
     // }
 
-    let mut dla = Dla::new(spawn_offset, seeds).unwrap();
+    let mut dla = Dla::new(spawn_offset, attraction_radius, seeds).unwrap();
 
     let mut rng = rand::thread_rng();
     for _ in 0..iterations {

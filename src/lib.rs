@@ -9,13 +9,25 @@ use crate::geo::Bbox;
 
 #[derive(Debug, Clone)]
 pub struct Dla {
+    spawn_offset: i64,
+
+    // TODO: consider using an Octree or some form of spatial index, this would
+    // allow probably more efficient code in case the attraction_radius is big.
+    // As of now, the attraction_radius is used to populate the neighbors vector
+    // with the deltas to cover a cube of size = attraction_radius*2 and then
+    // each of these neighbors is checked to find out whether the current
+    // particle is stuck.
     cells: HashSet<Vec3>,
     bbox: Bbox,
-    spawn_offset: i64,
+    neighbors: Vec<Vec3>,
 }
 
 impl Dla {
-    pub fn new(spawn_offset: i64, seeds: impl IntoIterator<Item = Vec3>) -> Option<Self> {
+    pub fn new(
+        spawn_offset: i64,
+        attraction_radius: u16,
+        seeds: impl IntoIterator<Item = Vec3>,
+    ) -> Option<Self> {
         let mut seeds = seeds.into_iter();
 
         let first = seeds.next()?;
@@ -30,10 +42,45 @@ impl Dla {
             bbox = bbox.expand(p);
         }
 
+        let mut neighbors = Vec::with_capacity(1 + 26 * usize::from(attraction_radius));
+        neighbors.push(Vec3::new(0, 0, 0));
+        for i in 1..=attraction_radius {
+            let i = i64::from(i);
+            neighbors.extend_from_slice(&[
+                Vec3::new(-i, -i, -i),
+                Vec3::new(-i, -i, 0),
+                Vec3::new(-i, -i, i),
+                Vec3::new(-i, 0, -i),
+                Vec3::new(-i, 0, 0),
+                Vec3::new(-i, 0, i),
+                Vec3::new(-i, i, -i),
+                Vec3::new(-i, i, 0),
+                Vec3::new(-i, i, i),
+                Vec3::new(0, -i, -i),
+                Vec3::new(0, -i, 0),
+                Vec3::new(0, -i, i),
+                Vec3::new(0, 0, -i),
+                Vec3::new(0, 0, i),
+                Vec3::new(0, i, -i),
+                Vec3::new(0, i, 0),
+                Vec3::new(0, i, i),
+                Vec3::new(i, -i, -i),
+                Vec3::new(i, -i, 0),
+                Vec3::new(i, -i, i),
+                Vec3::new(i, 0, -i),
+                Vec3::new(i, 0, 0),
+                Vec3::new(i, 0, i),
+                Vec3::new(i, i, -i),
+                Vec3::new(i, i, 0),
+                Vec3::new(i, i, i),
+            ]);
+        }
+
         Some(Dla {
             cells,
             bbox,
             spawn_offset,
+            neighbors,
         })
     }
 
@@ -69,60 +116,42 @@ impl Dla {
 
         let mut cell = respawn_cell(rng);
 
-        while !self.stuck(cell) {
-            let d = match rng.gen_range(0, 6) {
-                0 => Vec3::new(-1, 0, 0),
-                1 => Vec3::new(1, 0, 0),
-                2 => Vec3::new(0, -1, 0),
-                3 => Vec3::new(0, 1, 0),
-                4 => Vec3::new(0, 0, -1),
-                5 => Vec3::new(0, 0, 1),
-                _ => unreachable!(),
-            };
-            cell = cell + d;
+        loop {
+            match self.stuck(cell) {
+                Some(d) => {
+                    let od = Vec3::new(-d.x.signum(), -d.y.signum(), -d.z.signum());
+                    cell = cell + *d + od;
 
-            if !spawn_bbox.contains(cell) {
-                cell = respawn_cell(rng);
+                    self.cells.insert(cell);
+                    self.bbox = self.bbox.expand(cell);
+
+                    break;
+                }
+                None => {
+                    let d = match rng.gen_range(0, 6) {
+                        0 => Vec3::new(-1, 0, 0),
+                        1 => Vec3::new(1, 0, 0),
+                        2 => Vec3::new(0, -1, 0),
+                        3 => Vec3::new(0, 1, 0),
+                        4 => Vec3::new(0, 0, -1),
+                        5 => Vec3::new(0, 0, 1),
+                        _ => unreachable!(),
+                    };
+                    cell = cell + d;
+
+                    if !spawn_bbox.contains(cell) {
+                        cell = respawn_cell(rng);
+                    }
+                }
             }
         }
-
-        self.cells.insert(cell);
-        self.bbox = self.bbox.expand(cell);
 
         cell
     }
 
-    pub fn stuck(&self, p: Vec3) -> bool {
-        const NEIGHBORS: [Vec3; 27] = [
-            Vec3::new(-1, -1, -1),
-            Vec3::new(-1, -1, 0),
-            Vec3::new(-1, -1, 1),
-            Vec3::new(-1, 0, -1),
-            Vec3::new(-1, 0, 0),
-            Vec3::new(-1, 0, 1),
-            Vec3::new(-1, 1, -1),
-            Vec3::new(-1, 1, 0),
-            Vec3::new(-1, 1, 1),
-            Vec3::new(0, -1, -1),
-            Vec3::new(0, -1, 0),
-            Vec3::new(0, -1, 1),
-            Vec3::new(0, 0, -1),
-            Vec3::new(0, 0, 0),
-            Vec3::new(0, 0, 1),
-            Vec3::new(0, 1, -1),
-            Vec3::new(0, 1, 0),
-            Vec3::new(0, 1, 1),
-            Vec3::new(1, -1, -1),
-            Vec3::new(1, -1, 0),
-            Vec3::new(1, -1, 1),
-            Vec3::new(1, 0, -1),
-            Vec3::new(1, 0, 0),
-            Vec3::new(1, 0, 1),
-            Vec3::new(1, 1, -1),
-            Vec3::new(1, 1, 0),
-            Vec3::new(1, 1, 1),
-        ];
-
-        NEIGHBORS.iter().any(|n| self.cells.contains(&(p + *n)))
+    pub fn stuck(&self, p: Vec3) -> Option<&Vec3> {
+        self.neighbors
+            .iter()
+            .find(|n| self.cells.contains(&(p + **n)))
     }
 }
