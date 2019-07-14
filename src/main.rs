@@ -5,7 +5,12 @@ use std::io::Write;
 use dla::{Dla, Vec3};
 
 fn main() -> io::Result<()> {
-    let mut seeds = vec![Vec3::new(0, 0, 0)];
+    // let iterations = 10_000_000;
+    let iterations = 1_000;
+    let c: Rgb = [0.1, 0.3, 0.1];
+    let spawn_offset = 10;
+
+    let seeds = vec![Vec3::new(0, 0, 0)];
 
     // cross
     // for i in 1..=100 {
@@ -19,20 +24,18 @@ fn main() -> io::Result<()> {
     //     ]);
     // }
 
-    let mut dla = Dla::new(seeds).unwrap();
+    let mut dla = Dla::new(spawn_offset, seeds).unwrap();
 
     let mut rng = rand::thread_rng();
-    // for _ in 0..10_000_000 {
-    for _ in 0..100_000 {
+    for _ in 0..iterations {
         dla.add(&mut rng);
     }
-
-    dbg!(dla.len());
 
     let mut out = File::create("dla.pov")?;
 
     let scene_bbox = dla.bbox();
-    let camera_pos = Vec3::new(0, 0, scene_bbox.lower().z - 100);
+    let away_dist = (scene_bbox.lower().norm2() as f64).sqrt() as i64;
+    let camera_pos = Vec3::new(0, 0, scene_bbox.lower().z - away_dist);
 
     writeln!(
         out,
@@ -42,10 +45,9 @@ fn main() -> io::Result<()> {
 #include "colors.inc"
 
 global_settings {{ assumed_gamma 1.0 }}
-
 #default{{ finish {{ ambient 0.1 diffuse 0.9 }} }}
 
-// background {{ color Black }}
+background {{ color Black }}
 
 // scene bbox <{}, {}, {}> <{}, {}, {}>
 
@@ -68,44 +70,52 @@ camera {{
     writeln!(
         out,
         "light_source {{ <{}, {}, {}> color White}}",
-        (scene_bbox.lower() - 20).x,
-        (scene_bbox.lower() - 20).y,
-        (scene_bbox.lower() - 20).z
+        (scene_bbox.lower() - away_dist).x,
+        (scene_bbox.lower() - away_dist).y,
+        camera_pos.z
     )?;
     writeln!(
         out,
         "light_source {{ <{}, {}, {}> color White}}",
-        (scene_bbox.lower() - 20).x,
-        (scene_bbox.lower() - 20).y,
-        (scene_bbox.upper() + 20).z
-    )?;
-    writeln!(
-        out,
-        "light_source {{ <{}, {}, {}> color White}}",
-        (scene_bbox.upper() + 20).x,
-        (scene_bbox.upper() + 20).y,
-        (scene_bbox.upper() + 20).z
-    )?;
-    writeln!(
-        out,
-        "light_source {{ <{}, {}, {}> color White}}",
-        (scene_bbox.upper() + 20).x,
-        (scene_bbox.upper() + 20).y,
-        (scene_bbox.lower() - 20).z
+        (scene_bbox.upper() + away_dist).x,
+        (scene_bbox.upper() + away_dist).y,
+        camera_pos.z
     )?;
 
     writeln!(out, "\nunion {{")?;
     for p in dla.cells() {
         writeln!(out, "  sphere {{ <{}, {}, {}>, 1 }}", p.x, p.y, p.z)?;
     }
+
     writeln!(
         out,
         r#"  texture {{
-    pigment {{ color rgb<1,0.65,0> }}
+    pigment {{ color rgb<{}, {}, {}> }}
     finish {{ phong 0.5 }}
   }}
-}}"#
+}}"#,
+        c[0], c[1], c[2]
     )?;
 
+    println!(
+        r#"The DLA system was correctly generated. It contains {} particles.
+
+The final state of the system has been saved as a PovRay scene (dla.pov) which
+is possible to render with a povray invocation like the following
+
+`povray +A +W1600 +H1200 dla.pov`
+"#,
+        dla.len()
+    );
+
     Ok(())
+}
+
+pub type Rgb = [f64; 3];
+pub fn lerp_rgb(a: Rgb, b: Rgb, t: f64) -> Rgb {
+    [
+        a[0] + (b[0] - a[0]) * t,
+        a[1] + (b[1] - a[1]) * t,
+        a[2] + (b[2] - a[2]) * t,
+    ]
 }
