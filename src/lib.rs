@@ -24,7 +24,7 @@ pub struct Dla {
 
 impl Dla {
     pub fn new(
-        spawn_offset: i64,
+        spawn_offset: u32,
         attraction_radius: u16,
         seeds: impl IntoIterator<Item = Vec3>,
     ) -> Option<Self> {
@@ -79,7 +79,7 @@ impl Dla {
         Some(Dla {
             cells,
             bbox,
-            spawn_offset,
+            spawn_offset: i64::from(spawn_offset),
             neighbors,
         })
     }

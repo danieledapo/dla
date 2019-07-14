@@ -1,15 +1,35 @@
 use std::fs::File;
 use std::io;
 use std::io::Write;
+use std::path::PathBuf;
+
+use structopt::StructOpt;
 
 use dla::{Dla, Vec3};
 
+/// Simulate 3D diffusion limited aggregation (DLA for short) and save the final
+/// system as a povray scene ready to be rendered.
+#[derive(StructOpt, Debug)]
+struct App {
+    /// Number of particles to add to the DLA system.
+    #[structopt(short = "p", long = "particles", default_value = "10000")]
+    particles: usize,
+
+    #[structopt(short = "a", long = "attraction-radius", default_value = "8")]
+    attraction_radius: u16,
+
+    #[structopt(short = "s", long = "spawn-offset", default_value = "10")]
+    spawn_offset: u32,
+
+    /// Output filename where to save the povray scene.
+    #[structopt(parse(from_os_str), default_value = "dla.pov")]
+    output: PathBuf,
+}
+
 fn main() -> io::Result<()> {
-    // let iterations = 10_000_000;
-    let iterations = 100_000;
     let c: Rgb = [0.1, 0.3, 0.1];
-    let spawn_offset = 10;
-    let attraction_radius = 16;
+
+    let args = App::from_args();
 
     let seeds = vec![Vec3::new(0, 0, 0)];
 
@@ -25,14 +45,14 @@ fn main() -> io::Result<()> {
     //     ]);
     // }
 
-    let mut dla = Dla::new(spawn_offset, attraction_radius, seeds).unwrap();
+    let mut dla = Dla::new(args.spawn_offset, args.attraction_radius, seeds).unwrap();
 
     let mut rng = rand::thread_rng();
-    for _ in 0..iterations {
+    for _ in 0..args.particles {
         dla.add(&mut rng);
     }
 
-    let mut out = File::create("dla.pov")?;
+    let mut out = File::create(&args.output)?;
 
     let scene_bbox = dla.bbox();
     let away_dist = (scene_bbox.lower().norm2() as f64).sqrt() as i64;
@@ -104,9 +124,10 @@ camera {{
 The final state of the system has been saved as a PovRay scene (dla.pov) which
 is possible to render with a povray invocation like the following
 
-`povray +A +W1600 +H1200 dla.pov`
+`povray +A +W1600 +H1200 {}`
 "#,
-        dla.len()
+        dla.len(),
+        args.output.display()
     );
 
     Ok(())
