@@ -17,6 +17,14 @@ impl Vec3 {
     pub fn max(&self, o: Vec3) -> Self {
         Vec3::new(self.x.max(o.x), self.y.max(o.y), self.z.max(o.z))
     }
+
+    pub fn dist2(&self, o: Vec3) -> i64 {
+        (o - *self).norm2()
+    }
+
+    pub fn norm2(&self) -> i64 {
+        self.x.pow(2) + self.y.pow(2) + self.z.pow(2)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -36,6 +44,10 @@ impl Bbox {
 
     pub fn upper(&self) -> Vec3 {
         self.upper
+    }
+
+    pub fn center(&self) -> Vec3 {
+        (self.lower + self.upper) / 2
     }
 
     pub fn expand(&mut self, p: Vec3) -> Bbox {
@@ -81,5 +93,37 @@ impl std::ops::Sub<i64> for Vec3 {
 
     fn sub(self, d: i64) -> Self::Output {
         Vec3::new(self.x - d, self.y - d, self.z - d)
+    }
+}
+
+impl std::ops::Mul for Vec3 {
+    type Output = Self;
+
+    fn mul(self, d: Vec3) -> Self::Output {
+        Vec3::new(self.x * d.x, self.y * d.y, self.z * d.z)
+    }
+}
+
+impl std::ops::Mul<i64> for Vec3 {
+    type Output = Self;
+
+    fn mul(self, d: i64) -> Self::Output {
+        Vec3::new(self.x * d, self.y * d, self.z * d)
+    }
+}
+
+impl std::ops::Div for Vec3 {
+    type Output = Self;
+
+    fn div(self, d: Vec3) -> Vec3 {
+        Vec3::new(self.x / d.x, self.y / d.y, self.z / d.z)
+    }
+}
+
+impl std::ops::Div<i64> for Vec3 {
+    type Output = Self;
+
+    fn div(self, d: i64) -> Vec3 {
+        Vec3::new(self.x / d, self.y / d, self.z / d)
     }
 }
