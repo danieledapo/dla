@@ -10,6 +10,7 @@ use crate::geo::Bbox;
 #[derive(Debug, Clone)]
 pub struct Dla {
     spawn_offset: i64,
+    attraction_radius: i64,
 
     // TODO: consider using an Octree or some form of spatial index, this would
     // allow probably more efficient code in case the attraction_radius is big.
@@ -80,6 +81,7 @@ impl Dla {
             cells,
             bbox,
             spawn_offset: i64::from(spawn_offset),
+            attraction_radius: i64::from(attraction_radius),
             neighbors,
         })
     }
@@ -137,7 +139,7 @@ impl Dla {
                         5 => Vec3::new(0, 0, 1),
                         _ => unreachable!(),
                     };
-                    cell = cell + d;
+                    cell = cell + d * (self.attraction_radius / 3).max(1);
 
                     if !spawn_bbox.contains(cell) {
                         cell = respawn_cell(rng);
