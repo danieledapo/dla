@@ -70,6 +70,11 @@ impl Bbox {
             && (self.lower.y..=self.upper.y).contains(&p.y)
             && (self.lower.z..=self.upper.z).contains(&p.z)
     }
+
+    pub fn volume(&self) -> i64 {
+        let d = self.upper - self.lower;
+        d.x * d.y * d.z
+    }
 }
 
 impl std::ops::Add for Vec3 {
