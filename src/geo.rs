@@ -25,6 +25,17 @@ impl Vec3 {
     pub fn norm2(&self) -> i64 {
         self.x.pow(2) + self.y.pow(2) + self.z.pow(2)
     }
+
+    /// WARNING: not exact, rounding issues
+    pub fn norm(&self) -> i64 {
+        (self.norm2() as f64).sqrt() as i64
+    }
+
+    /// WARNING: not exact, rounding issues
+    pub fn normalized(&self) -> Self {
+        let l = self.norm();
+        Vec3::new(self.x / l, self.y / l, self.z / l)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -51,10 +62,7 @@ impl Bbox {
     }
 
     pub fn expand(&mut self, p: Vec3) -> Bbox {
-        Bbox {
-            lower: self.lower.min(p),
-            upper: self.upper.max(p),
-        }
+        Bbox { lower: self.lower.min(p), upper: self.upper.max(p) }
     }
 
     pub fn contains(&self, p: Vec3) -> bool {
