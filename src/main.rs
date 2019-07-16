@@ -1,7 +1,7 @@
 use std::collections::HashSet;
 use std::fs::File;
 use std::io;
-use std::io::Write;
+use std::io::{BufWriter, Write};
 use std::path::PathBuf;
 
 use structopt::StructOpt;
@@ -118,7 +118,7 @@ It contains {} particles and its bounding box goes from
 
 fn save_pov_scene(path: &PathBuf, Scene { dla, camera, lights }: &Scene) -> io::Result<()> {
     let path = path.with_extension("pov");
-    let mut out = File::create(&path)?;
+    let mut out = BufWriter::new(File::create(&path)?);
 
     let bbox = dla.bbox();
 
@@ -189,7 +189,7 @@ render with a command like the following
 
 fn save_js_scene(path: &PathBuf, Scene { dla, camera, lights }: &Scene) -> io::Result<()> {
     let path = path.with_extension("js");
-    let mut out = File::create(&path)?;
+    let mut out = BufWriter::new(File::create(&path)?);
 
     let scene_bbox = dla.bbox();
 
