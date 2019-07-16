@@ -273,6 +273,16 @@ impl Scene {
             1.0,
         );
 
+        // front light
+        add_light(
+            Vec3::new(
+                scene_bbox.center().x,
+                scene_bbox.center().y,
+                scene_bbox.lower().z - away_dist / 2,
+            ),
+            0.2,
+        );
+
         // fill light
         add_light(
             Vec3::new(scene_bbox.upper().x, scene_bbox.lower().y, scene_bbox.lower().z),
