@@ -9,7 +9,7 @@ use crate::geo::Bbox;
 
 #[derive(Debug, Clone)]
 pub struct Dla {
-    spawn_offset: i64,
+    spawn_radius: i64,
     attraction_radius: i64,
 
     // TODO: consider using an Octree or some form of spatial index, this would
@@ -25,7 +25,7 @@ pub struct Dla {
 
 impl Dla {
     pub fn new(
-        spawn_offset: u32,
+        spawn_radius: u32,
         attraction_radius: u16,
         seeds: impl IntoIterator<Item = Vec3>,
     ) -> Option<Self> {
@@ -80,7 +80,7 @@ impl Dla {
         Some(Dla {
             cells,
             bbox,
-            spawn_offset: i64::from(spawn_offset),
+            spawn_radius: i64::from(spawn_radius),
             attraction_radius: i64::from(attraction_radius),
             neighbors,
         })
@@ -105,8 +105,8 @@ impl Dla {
     pub fn add<R: Rng>(&mut self, rng: &mut R) -> Vec3 {
         let spawn_bbox = self
             .bbox
-            .expand(self.bbox.lower() - self.spawn_offset)
-            .expand(self.bbox.upper() + self.spawn_offset);
+            .expand(self.bbox.lower() - self.spawn_radius)
+            .expand(self.bbox.upper() + self.spawn_radius);
 
         let respawn_cell = |rng: &mut R| {
             Vec3::new(
