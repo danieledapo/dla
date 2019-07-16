@@ -152,8 +152,6 @@ impl Dla {
     }
 
     pub fn stuck(&self, p: Vec3) -> Option<&Vec3> {
-        self.neighbors
-            .iter()
-            .find(|n| self.cells.contains(&(p + **n)))
+        self.neighbors.iter().find(|n| self.cells.contains(&(p + **n)))
     }
 }
