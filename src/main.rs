@@ -3,6 +3,7 @@ use std::fs::File;
 use std::io;
 use std::io::{BufWriter, Write};
 use std::path::PathBuf;
+use std::time;
 
 use structopt::StructOpt;
 
@@ -82,20 +83,28 @@ fn main() -> io::Result<()> {
 
     let mut dla = Dla::new(args.spawn_radius, args.attraction_radius, seeds).unwrap();
 
+    let start = time::Instant::now();
     let mut rng = rand::thread_rng();
-    for _ in 0..args.particles {
+    for i in 0..args.particles {
+        if i % 100 == 0 {
+            print!("\rgenerated {} particles, progress: {}%", i, i * 100 / args.particles);
+            io::stdout().flush()?;
+        }
+
         dla.add(&mut rng);
     }
+    let duration = start.elapsed();
 
     #[rustfmt::skip]
     println!(
         r#"# DLA
 
-The DLA system was correctly generated.
+The DLA system was correctly generated in {}m {}s.
 
 It contains {} particles and its bounding box goes from
 ({},{},{}) to ({},{},{}) with a total volume of {}.
 "#,
+        duration.as_secs() / 60, duration.as_secs() % 60,
         dla.len(),
         dla.bbox().lower().x, dla.bbox().lower().y, dla.bbox().lower().z,
         dla.bbox().upper().x, dla.bbox().upper().y, dla.bbox().upper().z,
