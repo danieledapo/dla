@@ -1,0 +1,215 @@
+use crate::geo::{Bbox, Vec3};
+
+const MAX_LEAF_SIZE: usize = 64;
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct Octree {
+    root: Option<Node>,
+    outside: Vec<Vec3>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum Node {
+    Branch { children: Box<[Node; 8]>, bbox: Bbox },
+    Leaf { points: Vec<Vec3>, bbox: Bbox },
+    //
+    // TODO: consider adding a Full{bbox: Bbox} variant which could be constructed when we know
+    // that a bbox is completely full (remember we're living in a finite space since we're using
+    // integer coordinates). This variant would drastically improve query time and also space
+    // requirements.
+    //
+}
+
+impl Octree {
+    pub fn new() -> Self {
+        Octree { root: None, outside: Vec::with_capacity(MAX_LEAF_SIZE) }
+    }
+
+    pub fn with_hint(bbox: Bbox) -> Self {
+        Octree { root: Some(Node::new(bbox, vec![])), outside: vec![] }
+    }
+
+    pub fn add(&mut self, p: Vec3) {
+        if !self.root.as_ref().map_or(false, |n| n.bbox().contains(p)) {
+            self.outside.push(p);
+
+            // TODO: when outside contains more than MAX_LEAF_SIZE elems rebuild the tree
+            if self.outside.len() > MAX_LEAF_SIZE {
+                eprintln!("warning: too many points outside bbox, query performance may suffer");
+            }
+
+            return;
+        }
+
+        self.root.as_mut().unwrap().add(p);
+    }
+
+    pub fn nearest(&self, p: Vec3) -> Option<(Vec3, i64)> {
+        let closest = self.root.as_ref().and_then(|n| n.nearest(p));
+
+        let closest_outside =
+            self.outside.iter().map(|pt| (*pt, pt.dist2(p))).min_by_key(|(_, d)| *d);
+
+        match (closest, closest_outside) {
+            (None, None) => None,
+            (Some(n), None) | (None, Some(n)) => Some(n),
+            (Some(n1), Some(n2)) => {
+                if n1.1 < n2.1 {
+                    Some(n1)
+                } else {
+                    Some(n2)
+                }
+            }
+        }
+    }
+}
+
+impl Node {
+    pub fn new(bbox: Bbox, data: Vec<Vec3>) -> Self {
+        if data.len() <= MAX_LEAF_SIZE {
+            return Node::Leaf { points: data, bbox };
+        }
+
+        let c = bbox.center();
+        let sub_bboxes = split_bbox(&bbox, c);
+        let mut sub_data = [
+            Vec::with_capacity(MAX_LEAF_SIZE),
+            Vec::with_capacity(MAX_LEAF_SIZE),
+            Vec::with_capacity(MAX_LEAF_SIZE),
+            Vec::with_capacity(MAX_LEAF_SIZE),
+            Vec::with_capacity(MAX_LEAF_SIZE),
+            Vec::with_capacity(MAX_LEAF_SIZE),
+            Vec::with_capacity(MAX_LEAF_SIZE),
+            Vec::with_capacity(MAX_LEAF_SIZE),
+        ];
+
+        for p in data {
+            let bbox_id = partition_pt(p, c);
+            sub_data[bbox_id].push(p);
+        }
+
+        let child = |i: usize, sub_data: &mut [Vec<Vec3>; 8]| {
+            let mut d = vec![];
+            std::mem::swap(&mut d, &mut sub_data[i]);
+
+            Node::new(sub_bboxes[i].clone(), d)
+        };
+
+        let children = Box::new([
+            child(0, &mut sub_data),
+            child(1, &mut sub_data),
+            child(2, &mut sub_data),
+            child(3, &mut sub_data),
+            child(4, &mut sub_data),
+            child(5, &mut sub_data),
+            child(6, &mut sub_data),
+            child(7, &mut sub_data),
+        ]);
+
+        Node::Branch { bbox, children }
+    }
+
+    pub fn add(&mut self, p: Vec3) {
+        match self {
+            Node::Leaf { points, bbox } => {
+                points.push(p);
+                if points.len() >= MAX_LEAF_SIZE {
+                    let mut t = vec![];
+                    std::mem::swap(&mut t, points);
+
+                    *self = Node::new(bbox.clone(), t);
+                }
+            }
+            Node::Branch { children, bbox } => {
+                let i = partition_pt(p, bbox.center());
+                children[i].add(p);
+            }
+        }
+    }
+
+    pub fn nearest(&self, p: Vec3) -> Option<(Vec3, i64)> {
+        match self {
+            Node::Leaf { points, .. } => {
+                points.iter().map(|pt| (*pt, pt.dist2(p))).min_by_key(|(_, d)| *d)
+            }
+            Node::Branch { children, bbox } => {
+                let enclosing_bbox_id = partition_pt(p, bbox.center());
+
+                let mut nearest = children[enclosing_bbox_id].nearest(p);
+
+                for (bbox_id, child) in children.iter().enumerate() {
+                    if bbox_id == enclosing_bbox_id {
+                        continue;
+                    }
+
+                    match nearest {
+                        None => {
+                            nearest = child.nearest(p);
+                        }
+                        Some((_, min_dist)) => {
+                            if child.bbox().dist2(p) > min_dist {
+                                continue;
+                            }
+
+                            if let Some((n, d)) = child.nearest(p) {
+                                if d < min_dist {
+                                    nearest = Some((n, d));
+                                }
+                            }
+                        }
+                    }
+                }
+
+                nearest
+            }
+        }
+    }
+
+    pub fn bbox(&self) -> &Bbox {
+        match self {
+            Node::Branch { bbox, .. } | Node::Leaf { bbox, .. } => bbox,
+        }
+    }
+}
+
+fn split_bbox(bbox: &Bbox, c: Vec3) -> [Bbox; 8] {
+    debug_assert!(bbox.contains(c));
+
+    let u = bbox.upper();
+    let l = bbox.lower();
+
+    [
+        // top
+        Bbox::new(c).expand(Vec3::new(l.x, l.y, l.z)),
+        Bbox::new(c).expand(Vec3::new(l.x, l.y, u.z)),
+        Bbox::new(c).expand(Vec3::new(u.x, l.y, l.z)),
+        Bbox::new(c).expand(Vec3::new(u.x, l.y, u.z)),
+        // bottom
+        Bbox::new(c).expand(Vec3::new(l.x, u.y, l.z)),
+        Bbox::new(c).expand(Vec3::new(l.x, u.y, u.z)),
+        Bbox::new(c).expand(Vec3::new(u.x, u.y, l.z)),
+        Bbox::new(c).expand(Vec3::new(u.x, u.y, u.z)),
+    ]
+}
+
+fn partition_pt(p: Vec3, c: Vec3) -> usize {
+    if p.x <= c.x && p.y <= c.y && p.z <= c.z {
+        0
+    } else if p.x <= c.x && p.y <= c.y && p.z >= c.z {
+        1
+    } else if p.x >= c.x && p.y <= c.y && p.z <= c.z {
+        2
+    } else if p.x >= c.x && p.y <= c.y && p.z >= c.z {
+        3
+    } else if p.x <= c.x && p.y >= c.y && p.z <= c.z {
+        4
+    } else if p.x <= c.x && p.y >= c.y && p.z >= c.z {
+        5
+    } else if p.x >= c.x && p.y >= c.y && p.z <= c.z {
+        6
+    } else if p.x >= c.x && p.y >= c.y && p.z >= c.z {
+        7
+    } else {
+        unreachable!()
+    }
+}

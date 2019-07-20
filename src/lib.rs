@@ -3,6 +3,7 @@ use rand::Rng;
 
 pub mod geo;
 pub use geo::Vec3;
+pub mod octree;
 
 use crate::geo::Bbox;
 

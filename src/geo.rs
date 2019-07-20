@@ -38,7 +38,7 @@ impl Vec3 {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Bbox {
     lower: Vec3,
     upper: Vec3,
@@ -61,7 +61,7 @@ impl Bbox {
         (self.lower + self.upper) / 2
     }
 
-    pub fn expand(&mut self, p: Vec3) -> Bbox {
+    pub fn expand(&self, p: Vec3) -> Bbox {
         Bbox { lower: self.lower.min(p), upper: self.upper.max(p) }
     }
 
@@ -74,6 +74,11 @@ impl Bbox {
     pub fn volume(&self) -> i64 {
         let d = self.upper - self.lower;
         d.x * d.y * d.z
+    }
+
+    pub fn dist2(&self, p: Vec3) -> i64 {
+        // TODO:
+        unimplemented!()
     }
 }
 
