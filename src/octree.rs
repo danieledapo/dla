@@ -1,17 +1,21 @@
+use hashbrown::hash_set;
+use hashbrown::HashSet;
+
 use crate::geo::{Bbox, Vec3};
 
 const MAX_LEAF_SIZE: usize = 64;
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Octree {
     root: Option<Node>,
-    outside: Vec<Vec3>,
+    outside: HashSet<Vec3>,
+    len: usize,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 enum Node {
     Branch { children: Box<[Node; 8]>, bbox: Bbox },
-    Leaf { points: Vec<Vec3>, bbox: Bbox },
+    Leaf { points: HashSet<Vec3>, bbox: Bbox },
     //
     // TODO: consider adding a Full{bbox: Bbox} variant which could be constructed when we know
     // that a bbox is completely full (remember we're living in a finite space since we're using
@@ -20,18 +24,45 @@ enum Node {
     //
 }
 
+#[derive(Debug)]
+struct OctreeIter<'o> {
+    len: usize,
+    stack: Vec<&'o Node>,
+    current: Option<hash_set::Iter<'o, Vec3>>,
+}
+
 impl Octree {
     pub fn new() -> Self {
-        Octree { root: None, outside: Vec::with_capacity(MAX_LEAF_SIZE) }
+        Octree { root: None, outside: HashSet::with_capacity(MAX_LEAF_SIZE), len: 0 }
     }
 
     pub fn with_hint(bbox: Bbox) -> Self {
-        Octree { root: Some(Node::new(bbox, vec![])), outside: vec![] }
+        Octree {
+            root: Some(Node::new(bbox, HashSet::new())),
+            outside: HashSet::with_capacity(MAX_LEAF_SIZE),
+            len: 0,
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = &Vec3> {
+        let stack = self.root.as_ref().map_or_else(Vec::new, |c| vec![c]);
+
+        OctreeIter { stack, current: None, len: self.len }.into_iter().chain(self.outside.iter())
     }
 
     pub fn add(&mut self, p: Vec3) {
         if !self.root.as_ref().map_or(false, |n| n.bbox().contains(p)) {
-            self.outside.push(p);
+            if self.outside.insert(p) {
+                self.len += 1;
+            }
 
             // TODO: when outside contains more than MAX_LEAF_SIZE elems rebuild the tree
             if self.outside.len() > MAX_LEAF_SIZE {
@@ -41,7 +72,9 @@ impl Octree {
             return;
         }
 
-        self.root.as_mut().unwrap().add(p);
+        if self.root.as_mut().unwrap().add(p) {
+            self.len += 1;
+        }
     }
 
     pub fn nearest(&self, p: Vec3) -> Option<(Vec3, i64)> {
@@ -65,7 +98,7 @@ impl Octree {
 }
 
 impl Node {
-    pub fn new(bbox: Bbox, data: Vec<Vec3>) -> Self {
+    pub fn new(bbox: Bbox, data: HashSet<Vec3>) -> Self {
         if data.len() <= MAX_LEAF_SIZE {
             return Node::Leaf { points: data, bbox };
         }
@@ -73,23 +106,24 @@ impl Node {
         let c = bbox.center();
         let sub_bboxes = split_bbox(&bbox, c);
         let mut sub_data = [
-            Vec::with_capacity(MAX_LEAF_SIZE),
-            Vec::with_capacity(MAX_LEAF_SIZE),
-            Vec::with_capacity(MAX_LEAF_SIZE),
-            Vec::with_capacity(MAX_LEAF_SIZE),
-            Vec::with_capacity(MAX_LEAF_SIZE),
-            Vec::with_capacity(MAX_LEAF_SIZE),
-            Vec::with_capacity(MAX_LEAF_SIZE),
-            Vec::with_capacity(MAX_LEAF_SIZE),
+            HashSet::with_capacity(MAX_LEAF_SIZE),
+            HashSet::with_capacity(MAX_LEAF_SIZE),
+            HashSet::with_capacity(MAX_LEAF_SIZE),
+            HashSet::with_capacity(MAX_LEAF_SIZE),
+            HashSet::with_capacity(MAX_LEAF_SIZE),
+            HashSet::with_capacity(MAX_LEAF_SIZE),
+            HashSet::with_capacity(MAX_LEAF_SIZE),
+            HashSet::with_capacity(MAX_LEAF_SIZE),
         ];
 
         for p in data {
             let bbox_id = partition_pt(p, c);
-            sub_data[bbox_id].push(p);
+            sub_data[bbox_id].insert(p);
         }
 
-        let child = |i: usize, sub_data: &mut [Vec<Vec3>; 8]| {
-            let mut d = vec![];
+        let child = |i: usize, sub_data: &mut [HashSet<Vec3>; 8]| {
+            // swap to avoid to clone
+            let mut d = HashSet::new();
             std::mem::swap(&mut d, &mut sub_data[i]);
 
             Node::new(sub_bboxes[i].clone(), d)
@@ -109,20 +143,23 @@ impl Node {
         Node::Branch { bbox, children }
     }
 
-    pub fn add(&mut self, p: Vec3) {
+    pub fn add(&mut self, p: Vec3) -> bool {
         match self {
             Node::Leaf { points, bbox } => {
-                points.push(p);
-                if points.len() >= MAX_LEAF_SIZE {
-                    let mut t = vec![];
+                let inserted = points.insert(p);
+
+                if points.len() > MAX_LEAF_SIZE {
+                    let mut t = HashSet::new();
                     std::mem::swap(&mut t, points);
 
                     *self = Node::new(bbox.clone(), t);
                 }
+
+                inserted
             }
             Node::Branch { children, bbox } => {
                 let i = partition_pt(p, bbox.center());
-                children[i].add(p);
+                children[i].add(p)
             }
         }
     }
@@ -147,7 +184,7 @@ impl Node {
                             nearest = child.nearest(p);
                         }
                         Some((_, min_dist)) => {
-                            if child.bbox().dist2(p) > min_dist {
+                            if child.bbox().dist2(p) >= min_dist {
                                 continue;
                             }
 
@@ -169,6 +206,34 @@ impl Node {
         match self {
             Node::Branch { bbox, .. } | Node::Leaf { bbox, .. } => bbox,
         }
+    }
+}
+
+impl<'o> Iterator for OctreeIter<'o> {
+    type Item = &'o Vec3;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if let Some(p) = self.current.as_mut().and_then(|c| c.next()) {
+                self.len -= 1;
+                break Some(p);
+            }
+
+            let n = self.stack.pop()?;
+
+            match n {
+                Node::Branch { children, .. } => {
+                    self.stack.extend(children.iter());
+                }
+                Node::Leaf { points, .. } => {
+                    self.current = Some(points.iter());
+                }
+            }
+        }
+    }
+
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        (self.len, Some(self.len))
     }
 }
 
