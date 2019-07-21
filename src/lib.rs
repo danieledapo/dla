@@ -1,4 +1,3 @@
-use hashbrown::HashSet;
 use rand::Rng;
 
 pub mod geo;
@@ -6,21 +5,15 @@ pub use geo::Vec3;
 pub mod octree;
 
 use crate::geo::Bbox;
+use crate::octree::Octree;
 
 #[derive(Debug, Clone)]
 pub struct Dla {
     spawn_radius: i64,
     attraction_radius: i64,
 
-    // TODO: consider using an Octree or some form of spatial index, this would
-    // allow probably more efficient code in case the attraction_radius is big.
-    // As of now, the attraction_radius is used to populate the neighbors vector
-    // with the deltas to cover a cube of size = attraction_radius*2 and then
-    // each of these neighbors is checked to find out whether the current
-    // particle is stuck.
-    cells: HashSet<Vec3>,
+    cells: Octree,
     bbox: Bbox,
-    neighbors: Vec<Vec3>,
 }
 
 impl Dla {
@@ -31,50 +24,19 @@ impl Dla {
     ) -> Option<Self> {
         let mut seeds = seeds.into_iter();
 
-        let first = seeds.next()?;
+        // FIXME
+        let hint = Bbox::new(Vec3::new(-800, -800, -800)).expand(Vec3::new(800, 800, 800));
 
-        let mut cells = HashSet::with_capacity(seeds.size_hint().0 + 1);
-        cells.insert(first);
+        let mut cells = Octree::with_hint(hint);
+
+        let first = seeds.next()?;
+        cells.add(first);
 
         let mut bbox = Bbox::new(first);
 
         for p in seeds {
-            cells.insert(p);
+            cells.add(p);
             bbox = bbox.expand(p);
-        }
-
-        let mut neighbors = Vec::with_capacity(1 + 26 * usize::from(attraction_radius));
-        neighbors.push(Vec3::new(0, 0, 0));
-        for i in 1..=attraction_radius {
-            let i = i64::from(i);
-            neighbors.extend_from_slice(&[
-                Vec3::new(-i, -i, -i),
-                Vec3::new(-i, -i, 0),
-                Vec3::new(-i, -i, i),
-                Vec3::new(-i, 0, -i),
-                Vec3::new(-i, 0, 0),
-                Vec3::new(-i, 0, i),
-                Vec3::new(-i, i, -i),
-                Vec3::new(-i, i, 0),
-                Vec3::new(-i, i, i),
-                Vec3::new(0, -i, -i),
-                Vec3::new(0, -i, 0),
-                Vec3::new(0, -i, i),
-                Vec3::new(0, 0, -i),
-                Vec3::new(0, 0, i),
-                Vec3::new(0, i, -i),
-                Vec3::new(0, i, 0),
-                Vec3::new(0, i, i),
-                Vec3::new(i, -i, -i),
-                Vec3::new(i, -i, 0),
-                Vec3::new(i, -i, i),
-                Vec3::new(i, 0, -i),
-                Vec3::new(i, 0, 0),
-                Vec3::new(i, 0, i),
-                Vec3::new(i, i, -i),
-                Vec3::new(i, i, 0),
-                Vec3::new(i, i, i),
-            ]);
         }
 
         Some(Dla {
@@ -82,7 +44,6 @@ impl Dla {
             bbox,
             spawn_radius: i64::from(spawn_radius),
             attraction_radius: i64::from(attraction_radius),
-            neighbors,
         })
     }
 
@@ -120,11 +81,11 @@ impl Dla {
 
         loop {
             match self.stuck(cell) {
-                Some(d) => {
-                    let od = Vec3::new(-d.x.signum(), -d.y.signum(), -d.z.signum());
-                    cell = cell + *d + od;
+                Some(n) => {
+                    let d = cell - n;
+                    cell = n + Vec3::new(d.x.signum(), d.y.signum(), d.z.signum());
 
-                    self.cells.insert(cell);
+                    self.cells.add(cell);
                     self.bbox = self.bbox.expand(cell);
 
                     break;
@@ -151,7 +112,14 @@ impl Dla {
         cell
     }
 
-    pub fn stuck(&self, p: Vec3) -> Option<&Vec3> {
-        self.neighbors.iter().find(|n| self.cells.contains(&(p + **n)))
+    pub fn stuck(&self, p: Vec3) -> Option<Vec3> {
+        let (n, _d2) = self.cells.nearest(p)?;
+
+        let d = n - p;
+        if d.x.abs() + d.y.abs() + d.z.abs() <= self.attraction_radius {
+            Some(n)
+        } else {
+            None
+        }
     }
 }

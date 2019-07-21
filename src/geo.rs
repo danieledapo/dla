@@ -77,8 +77,11 @@ impl Bbox {
     }
 
     pub fn dist2(&self, p: Vec3) -> i64 {
-        // TODO:
-        unimplemented!()
+        p.dist2(self.clamp(p))
+    }
+
+    pub fn clamp(&self, p: Vec3) -> Vec3 {
+        p.max(self.lower).min(self.upper)
     }
 }
 
