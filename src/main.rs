@@ -93,6 +93,14 @@ fn main() -> io::Result<()> {
 
         dla.add(&mut rng);
     }
+
+    // clear progress line manually
+    println!(
+        "\r          {:width$}                          ",
+        " ",
+        width = args.particles.to_string().len()
+    );
+
     let duration = start.elapsed();
 
     #[rustfmt::skip]
