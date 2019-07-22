@@ -10,6 +10,7 @@ pub struct Octree {
     root: Option<Node>,
     outside: HashSet<Vec3>,
     len: usize,
+    rebuilt_count: usize,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -33,7 +34,12 @@ struct OctreeIter<'o> {
 
 impl Octree {
     pub fn new() -> Self {
-        Octree { root: None, outside: HashSet::with_capacity(MAX_LEAF_SIZE), len: 0 }
+        Octree {
+            root: None,
+            outside: HashSet::with_capacity(MAX_LEAF_SIZE),
+            len: 0,
+            rebuilt_count: 0,
+        }
     }
 
     pub fn with_hint(bbox: Bbox) -> Self {
@@ -41,6 +47,7 @@ impl Octree {
             root: Some(Node::new(bbox, HashSet::new())),
             outside: HashSet::with_capacity(MAX_LEAF_SIZE),
             len: 0,
+            rebuilt_count: 0,
         }
     }
 
@@ -52,10 +59,14 @@ impl Octree {
         self.len() == 0
     }
 
+    pub fn rebuilt_count(&self) -> usize {
+        self.rebuilt_count
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = &Vec3> {
         let stack = self.root.as_ref().map_or_else(Vec::new, |c| vec![c]);
 
-        OctreeIter { stack, current: None, len: self.len }.into_iter().chain(self.outside.iter())
+        OctreeIter { stack, current: None, len: self.len }.chain(self.outside.iter())
     }
 
     pub fn add(&mut self, p: Vec3) {
@@ -64,9 +75,10 @@ impl Octree {
                 self.len += 1;
             }
 
-            // TODO: when outside contains more than MAX_LEAF_SIZE elems rebuild the tree
             if self.outside.len() > MAX_LEAF_SIZE {
-                eprintln!("warning: too many points outside bbox, query performance may suffer");
+                // eprintln!("warning: too many points outside bbox, rebuilding tree");
+                *self = self.iter().chain(self.outside.iter()).cloned().collect();
+                self.rebuilt_count += 1;
             }
 
             return;
@@ -234,6 +246,31 @@ impl<'o> Iterator for OctreeIter<'o> {
 
     fn size_hint(&self) -> (usize, Option<usize>) {
         (self.len, Some(self.len))
+    }
+}
+
+impl std::iter::FromIterator<Vec3> for Octree {
+    fn from_iter<T: IntoIterator<Item = Vec3>>(iter: T) -> Self {
+        let pts = iter.into_iter().collect::<HashSet<_>>();
+
+        let bbox = {
+            let mut pts = pts.iter();
+
+            let bbox = match pts.next() {
+                None => return Octree::new(),
+                Some(first) => Bbox::new(*first),
+            };
+
+            pts.fold(bbox, |b, p| b.expand(*p))
+        };
+
+        let len = pts.len();
+        Octree {
+            outside: HashSet::with_capacity(MAX_LEAF_SIZE),
+            root: Some(Node::new(bbox, pts)),
+            len,
+            rebuilt_count: 0,
+        }
     }
 }
 
