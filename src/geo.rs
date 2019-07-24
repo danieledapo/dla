@@ -83,6 +83,14 @@ impl Bbox {
     pub fn clamp(&self, p: Vec3) -> Vec3 {
         p.max(self.lower).min(self.upper)
     }
+
+    pub fn scale(&self, f: i64) -> Self {
+        Bbox { lower: self.lower * f, upper: self.upper * f }
+    }
+
+    pub fn union(&self, b: &Bbox) -> Self {
+        Bbox { lower: self.lower.min(b.lower), upper: self.upper.max(b.upper) }
+    }
 }
 
 impl std::ops::Add for Vec3 {
