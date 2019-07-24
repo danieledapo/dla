@@ -24,10 +24,7 @@ impl Dla {
     ) -> Option<Self> {
         let mut seeds = seeds.into_iter();
 
-        // FIXME: find a better heuristic
-        let hint = Bbox::new(Vec3::new(-800, -800, -800)).expand(Vec3::new(800, 800, 800));
-
-        let mut cells = Octree::with_hint(hint);
+        let mut cells = Octree::new();
 
         let first = seeds.next()?;
         cells.add(first);

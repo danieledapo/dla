@@ -77,7 +77,23 @@ impl Octree {
 
             if self.outside.len() > MAX_LEAF_SIZE {
                 // eprintln!("warning: too many points outside bbox, rebuilding tree");
-                *self = self.iter().chain(self.outside.iter()).cloned().collect();
+
+                let outside_bbox = self
+                    .outside
+                    .iter()
+                    .fold(Bbox::new(*self.outside.iter().next().unwrap()), |b, p| b.expand(*p));
+
+                let b = match &self.root {
+                    None => outside_bbox,
+                    Some(n) => n.bbox().union(&outside_bbox),
+                };
+
+                // scale bounding box to avoid rebuilding the tree in the near future
+                let b = b.scale(2);
+
+                self.root =
+                    Some(Node::new(b, self.iter().chain(self.outside.iter()).cloned().collect()));
+                self.outside.clear();
                 self.rebuilt_count += 1;
             }
 
