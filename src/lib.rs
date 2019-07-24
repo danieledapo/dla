@@ -97,7 +97,7 @@ impl Dla {
                         5 => Vec3::new(0, 0, 1),
                         _ => unreachable!(),
                     };
-                    cell = cell + d * (self.attraction_radius / 3).max(1);
+                    cell = cell + d * self.attraction_radius;
 
                     if !spawn_bbox.contains(cell) {
                         cell = respawn_cell(rng);
