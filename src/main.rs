@@ -221,8 +221,8 @@ var DLA = {{
         upper: {{ x: {}, y: {}, z: {} }},
     }},
     camera: {{
-        lower: {{ x: {}, y: {}, z: {} }},
-        upper: {{ x: {}, y: {}, z: {} }},
+        position: {{ x: {}, y: {}, z: {} }},
+        look_at: {{ x: {}, y: {}, z: {} }},
     }},
     lights: ["#,
         scene_bbox.lower().x, scene_bbox.lower().y, scene_bbox.lower().z,
