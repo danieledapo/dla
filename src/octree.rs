@@ -331,3 +331,27 @@ fn partition_pt(p: Vec3, c: Vec3) -> usize {
         unreachable!()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn nearest_neighbor_is_the_same_as_iterating(
+            pts in prop::collection::hash_set((-3000_i64..3000, -3000_i64..3000, -3000_i64..3000), 10000),
+            p in (-3000_i64..3000, -3000_i64..3000, -3000_i64..3000)
+        ) {
+            let pts: HashSet<_> = pts.into_iter().map(|(x,y,z)| Vec3::new(x,y,z)).collect();
+            let p = Vec3::new(p.0, p.1, p.2);
+
+            let octree: Octree = pts.clone().into_iter().collect();
+
+            let nn = octree.nearest(p).map(|(_, d)| d);
+            let nn2 = pts.iter().map(|pp| pp.dist2(p)).min();
+            prop_assert_eq!(nn, nn2);
+        }
+    }
+}

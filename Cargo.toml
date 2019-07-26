@@ -8,3 +8,6 @@ edition = "2018"
 rand = "0.7"
 structopt = "0.2"
 hashbrown = "*"
+
+[dev-dependencies]
+proptest = "0.9"
