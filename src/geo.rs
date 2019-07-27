@@ -76,6 +76,10 @@ impl Bbox {
         d.x * d.y * d.z
     }
 
+    pub fn dimensions(&self) -> Vec3 {
+        self.upper - self.lower
+    }
+
     pub fn dist2(&self, p: Vec3) -> i64 {
         p.dist2(self.clamp(p))
     }
@@ -154,5 +158,13 @@ impl std::ops::Div<i64> for Vec3 {
 
     fn div(self, d: i64) -> Vec3 {
         Vec3::new(self.x / d, self.y / d, self.z / d)
+    }
+}
+
+impl std::ops::Neg for Vec3 {
+    type Output = Self;
+
+    fn neg(self) -> Vec3 {
+        Vec3::new(-self.x, -self.y, -self.z)
     }
 }

@@ -68,19 +68,6 @@ fn main() -> io::Result<()> {
     let args = App::from_args();
 
     let seeds = vec![Vec3::new(0, 0, 0)];
-
-    // cross
-    // for i in 1..=100 {
-    //     seeds.extend_from_slice(&[
-    //         Vec3::new(i, 0, 0),
-    //         Vec3::new(0, i, 0),
-    //         Vec3::new(0, 0, i),
-    //         Vec3::new(-i, 0, 0),
-    //         Vec3::new(0, -i, 0),
-    //         Vec3::new(0, 0, -i),
-    //     ]);
-    // }
-
     let mut dla = Dla::new(args.spawn_radius, args.attraction_radius, seeds).unwrap();
 
     let start = time::Instant::now();
@@ -176,19 +163,42 @@ camera {{
         )?;
     }
 
-    writeln!(out, "\nunion {{")?;
-    for p in dla.cells() {
-        writeln!(out, "  sphere {{ <{}, {}, {}>, 1 }}", p.x, p.y, p.z)?;
-    }
+    let center = bbox.center();
+    let mut cells = dla.cells().map(|cc| (cc, center.dist2(*cc))).collect::<Vec<_>>();
+    cells.sort_by_key(|(_, d)| *d);
 
-    writeln!(
-        out,
-        r#"  texture {{
-    pigment {{ color rgb<0.1, 0.3, 0.1> }}
+    let d = cells.last().expect("empty dla, cannot happen since it should be seeded").1;
+    let mut cells = cells.into_iter();
+
+    let gradients = 3;
+    let n = gradients * 2;
+    for i in 0..n {
+        writeln!(out, "\nunion {{")?;
+        for (p, _) in cells.by_ref().take_while(|(_, dd)| *dd <= (i + 1) * d / n) {
+            writeln!(out, "  sphere {{ <{}, {}, {}>, 1 }}", p.x, p.y, p.z)?;
+        }
+
+        let (r, g, b) = match 5 + i / gradients {
+            0..=2 => (0.27, 0.3, 0.02),
+            3..=4 => (0.0, 0.6, 0.02),
+            5 => (0.34, 0.7, 0.03),
+            6 => (0.85, 0.84, 0.00),
+            _ => unreachable!(),
+        };
+
+        let f = (1.0 + (i % gradients) as f64) / (gradients as f64);
+        let (r, g, b) = (r * f, g * f, b * f);
+
+        writeln!(
+            out,
+            r#"  texture {{
+    pigment {{ color rgb<{}, {}, {}> }}
     finish {{ phong 0.5 }}
   }}
-}}"#
-    )?;
+}}"#,
+            r, g, b
+        )?;
+    }
 
     println!(
         r#"## PovRay Scene
@@ -196,7 +206,7 @@ camera {{
 The DLA scene has been saved as a PovRay scene ({path}) which is possible to
 render with a command like the following
 
-`povray +A +W1600 +H1200 {path}`
+`povray +A +W1600 +H1600 {path}`
 "#,
         path = path.display()
     );
@@ -272,9 +282,14 @@ impl Scene {
     /// arbitrary way.
     fn new(dla: Dla) -> Self {
         let scene_bbox = dla.bbox();
-        let away_dist = (scene_bbox.lower() - scene_bbox.center()).norm();
+        let scene_dimensions = scene_bbox.dimensions();
+        let away_dist = scene_dimensions.x.min(scene_dimensions.y).min(scene_dimensions.z);
         let camera = Camera {
-            position: Vec3::new(0, 0, scene_bbox.lower().z - away_dist),
+            position: Vec3::new(
+                scene_bbox.center().x - away_dist,
+                scene_bbox.center().y,
+                scene_bbox.lower().z - away_dist,
+            ),
             target: Vec3::new(0, 0, 0),
         };
         let mut lights = vec![];
