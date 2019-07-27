@@ -1,4 +1,5 @@
 use rand::Rng;
+use rand::seq::SliceRandom;
 
 pub mod geo;
 pub use geo::Vec3;
@@ -11,6 +12,7 @@ use crate::octree::Octree;
 pub struct Dla {
     spawn_radius: i64,
     attraction_radius: i64,
+    attraction_radius2: i64,
 
     cells: Octree,
     bbox: Bbox,
@@ -41,6 +43,7 @@ impl Dla {
             bbox,
             spawn_radius: i64::from(spawn_radius),
             attraction_radius: i64::from(attraction_radius),
+            attraction_radius2: i64::from(attraction_radius).pow(2),
         })
     }
 
@@ -88,15 +91,14 @@ impl Dla {
                     break;
                 }
                 None => {
-                    let d = match rng.gen_range(0, 6) {
-                        0 => Vec3::new(-1, 0, 0),
-                        1 => Vec3::new(1, 0, 0),
-                        2 => Vec3::new(0, -1, 0),
-                        3 => Vec3::new(0, 1, 0),
-                        4 => Vec3::new(0, 0, -1),
-                        5 => Vec3::new(0, 0, 1),
-                        _ => unreachable!(),
-                    };
+                    let d = Vec3::new(
+                        rng.gen_range(1, self.attraction_radius / 2)
+                            * *[-1, 1].choose(rng).unwrap(),
+                        rng.gen_range(1, self.attraction_radius / 2)
+                            * *[-1, 1].choose(rng).unwrap(),
+                        rng.gen_range(1, self.attraction_radius / 2)
+                            * *[-1, 1].choose(rng).unwrap(),
+                    );
                     cell = cell + d * self.attraction_radius;
 
                     if !spawn_bbox.contains(cell) {
@@ -110,10 +112,9 @@ impl Dla {
     }
 
     pub fn stuck(&self, p: Vec3) -> Option<Vec3> {
-        let (n, _d2) = self.cells.nearest(p)?;
+        let (n, d2) = self.cells.nearest(p)?;
 
-        let d = n - p;
-        if d.x.abs() + d.y.abs() + d.z.abs() <= self.attraction_radius {
+        if d2 <= self.attraction_radius2 {
             Some(n)
         } else {
             None
