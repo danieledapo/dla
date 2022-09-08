@@ -1,39 +1,40 @@
-use std::collections::HashSet;
-use std::fs::File;
-use std::io;
-use std::io::{BufWriter, Write};
-use std::path::PathBuf;
-use std::time;
+use std::{
+    collections::HashSet,
+    fs::File,
+    io::{self, BufWriter, Write},
+    path::PathBuf,
+    time,
+};
 
-use structopt::StructOpt;
+use clap::Parser;
 
 use dla::{Dla, Vec3};
 
 /// Simulate 3D diffusion limited aggregation (DLA for short) and save the final
 /// system as a scene ready to be rendered using povray for example.
-#[derive(StructOpt, Debug)]
+#[derive(Parser, Debug)]
 struct App {
     /// Number of particles to add to the DLA system.
-    #[structopt(short = "p", long = "particles", default_value = "10000")]
+    #[clap(short = 'p', long = "particles", default_value = "10000")]
     particles: usize,
 
     /// The attraction radius of each particle that makes other particles stick
     /// to it.
-    #[structopt(short = "a", long = "attraction-radius", default_value = "8")]
+    #[clap(short = 'a', long = "attraction-radius", default_value = "8")]
     attraction_radius: u16,
 
     /// How far away new particles are generated from the core of the current
     /// DLA.
-    #[structopt(short = "g", long = "spawn-radius", default_value = "10")]
+    #[clap(short = 'g', long = "spawn-radius", default_value = "10")]
     spawn_radius: u32,
 
     /// The output formats the scene should be saved as. As of now `javascript,
     /// `povray` and `csv` are supported.
-    #[structopt(short = "s", long = "scene-format", default_value = "povray")]
+    #[clap(short = 's', long = "scene-format", default_value = "povray")]
     scene_formats: Vec<SceneFormat>,
 
     /// Output filename where to save the scene.
-    #[structopt(parse(from_os_str), default_value = "dla.pov")]
+    #[clap(parse(from_os_str), default_value = "dla.pov")]
     output: PathBuf,
 }
 

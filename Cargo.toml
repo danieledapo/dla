@@ -5,9 +5,9 @@ authors = ["Daniele D'Orazio <d.dorazio96@gmail.com>"]
 edition = "2021"
 
 [dependencies]
+clap = { version = "3.0", features = ["derive"] }
+hashbrown = "0.12"
 rand = "0.8"
-structopt = "0.3"
-hashbrown = "0.9"
 
 [dev-dependencies]
-proptest = "0.10"
+proptest = "1.0"
