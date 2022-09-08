@@ -74,7 +74,11 @@ fn main() -> io::Result<()> {
     let mut rng = rand::thread_rng();
     for i in 0..args.particles {
         if i % 100 == 0 {
-            print!("\rgenerated {} particles, progress: {}%", i, i * 100 / args.particles);
+            print!(
+                "\rgenerated {} particles, progress: {}%",
+                i,
+                i * 100 / args.particles
+            );
             io::stdout().flush()?;
         }
 
@@ -117,7 +121,14 @@ It contains {} particles and its bounding box goes from
     Ok(())
 }
 
-fn save_pov_scene(path: &Path, Scene { dla, camera, lights }: &Scene) -> io::Result<()> {
+fn save_pov_scene(
+    path: &Path,
+    Scene {
+        dla,
+        camera,
+        lights,
+    }: &Scene,
+) -> io::Result<()> {
     let path = path.with_extension("pov");
     let mut out = BufWriter::new(File::create(&path)?);
 
@@ -161,17 +172,26 @@ camera {{
     }
 
     let center = bbox.center();
-    let mut cells = dla.cells().map(|cc| (cc, center.dist2(*cc))).collect::<Vec<_>>();
+    let mut cells = dla
+        .cells()
+        .map(|cc| (cc, center.dist2(*cc)))
+        .collect::<Vec<_>>();
     cells.sort_by_key(|(_, d)| *d);
 
-    let max_d = cells.last().expect("empty dla, cannot happen since it should be seeded").1;
+    let max_d = cells
+        .last()
+        .expect("empty dla, cannot happen since it should be seeded")
+        .1;
     let mut cells = cells.into_iter();
 
     let gradients = 3;
     let n = gradients * 2;
     for i in 0..n {
         writeln!(out, "\nunion {{")?;
-        for (p, _) in cells.by_ref().take_while(|(_, dd)| *dd <= (i + 1) * max_d / n) {
+        for (p, _) in cells
+            .by_ref()
+            .take_while(|(_, dd)| *dd <= (i + 1) * max_d / n)
+        {
             writeln!(out, "  sphere {{ <{}, {}, {}>, 1 }}", p.x, p.y, p.z)?;
         }
 
@@ -211,7 +231,14 @@ render with a command like the following
     Ok(())
 }
 
-fn save_js_scene(path: &Path, Scene { dla, camera, lights }: &Scene) -> io::Result<()> {
+fn save_js_scene(
+    path: &Path,
+    Scene {
+        dla,
+        camera,
+        lights,
+    }: &Scene,
+) -> io::Result<()> {
     let path = path.with_extension("js");
     let mut out = BufWriter::new(File::create(&path)?);
 
@@ -299,7 +326,10 @@ impl Scene {
     fn new(dla: Dla) -> Self {
         let scene_bbox = dla.bbox();
         let scene_dimensions = scene_bbox.dimensions();
-        let away_dist = scene_dimensions.x.min(scene_dimensions.y).min(scene_dimensions.z);
+        let away_dist = scene_dimensions
+            .x
+            .min(scene_dimensions.y)
+            .min(scene_dimensions.z);
 
         let camera = Camera {
             position: Vec3::new(
@@ -313,12 +343,19 @@ impl Scene {
         let mut lights = vec![];
         let mut add_light = |pt: Vec3, intensity| {
             let position = pt + (pt - scene_bbox.center()).normalized() * away_dist;
-            lights.push(Light { position, intensity })
+            lights.push(Light {
+                position,
+                intensity,
+            })
         };
 
         // key light
         add_light(
-            Vec3::new(scene_bbox.lower().x, scene_bbox.center().y, scene_bbox.lower().z),
+            Vec3::new(
+                scene_bbox.lower().x,
+                scene_bbox.center().y,
+                scene_bbox.lower().z,
+            ),
             1.0,
         );
 
@@ -334,26 +371,49 @@ impl Scene {
 
         // fill light
         add_light(
-            Vec3::new(scene_bbox.upper().x, scene_bbox.lower().y, scene_bbox.lower().z),
+            Vec3::new(
+                scene_bbox.upper().x,
+                scene_bbox.lower().y,
+                scene_bbox.lower().z,
+            ),
             0.75,
         );
 
         // background light
-        add_light(Vec3::new(scene_bbox.lower().x, scene_bbox.upper().y, scene_bbox.upper().z), 0.5);
+        add_light(
+            Vec3::new(
+                scene_bbox.lower().x,
+                scene_bbox.upper().y,
+                scene_bbox.upper().z,
+            ),
+            0.5,
+        );
 
         // bottom light
         add_light(
-            Vec3::new(scene_bbox.center().x, scene_bbox.lower().y, scene_bbox.center().z),
+            Vec3::new(
+                scene_bbox.center().x,
+                scene_bbox.lower().y,
+                scene_bbox.center().z,
+            ),
             0.75,
         );
 
         // top light
         add_light(
-            Vec3::new(scene_bbox.center().x, scene_bbox.upper().y, scene_bbox.center().z),
+            Vec3::new(
+                scene_bbox.center().x,
+                scene_bbox.upper().y,
+                scene_bbox.center().z,
+            ),
             0.5,
         );
 
-        Scene { camera, lights, dla }
+        Scene {
+            camera,
+            lights,
+            dla,
+        }
     }
 }
 

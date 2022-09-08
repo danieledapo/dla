@@ -15,8 +15,14 @@ pub struct Octree {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum Node {
-    Branch { children: Box<[Node; 8]>, bbox: Bbox },
-    Leaf { points: HashSet<Vec3>, bbox: Bbox },
+    Branch {
+        children: Box<[Node; 8]>,
+        bbox: Bbox,
+    },
+    Leaf {
+        points: HashSet<Vec3>,
+        bbox: Bbox,
+    },
 }
 
 #[derive(Debug)]
@@ -60,7 +66,12 @@ impl Octree {
     pub fn iter(&self) -> impl Iterator<Item = &Vec3> {
         let stack = self.root.as_ref().map_or_else(Vec::new, |c| vec![c]);
 
-        OctreeIter { stack, current: None, len: self.len }.chain(self.outside.iter())
+        OctreeIter {
+            stack,
+            current: None,
+            len: self.len,
+        }
+        .chain(self.outside.iter())
     }
 
     pub fn add(&mut self, p: Vec3) {
@@ -75,7 +86,9 @@ impl Octree {
                 let outside_bbox = self
                     .outside
                     .iter()
-                    .fold(Bbox::new(*self.outside.iter().next().unwrap()), |b, p| b.expand(*p));
+                    .fold(Bbox::new(*self.outside.iter().next().unwrap()), |b, p| {
+                        b.expand(*p)
+                    });
 
                 let b = match &self.root {
                     None => outside_bbox,
@@ -85,8 +98,10 @@ impl Octree {
                 // scale bounding box to avoid rebuilding the tree in the near future
                 let b = b.scale(2);
 
-                self.root =
-                    Some(Node::new(b, self.iter().chain(self.outside.iter()).cloned().collect()));
+                self.root = Some(Node::new(
+                    b,
+                    self.iter().chain(self.outside.iter()).cloned().collect(),
+                ));
                 self.outside.clear();
                 self.rebuilt_count += 1;
             }
@@ -102,8 +117,11 @@ impl Octree {
     pub fn nearest(&self, p: Vec3) -> Option<(Vec3, i64)> {
         let closest = self.root.as_ref().and_then(|n| n.nearest(p));
 
-        let closest_outside =
-            self.outside.iter().map(|pt| (*pt, pt.dist2(p))).min_by_key(|(_, d)| *d);
+        let closest_outside = self
+            .outside
+            .iter()
+            .map(|pt| (*pt, pt.dist2(p)))
+            .min_by_key(|(_, d)| *d);
 
         match (closest, closest_outside) {
             (None, None) => None,
@@ -188,9 +206,10 @@ impl Node {
 
     pub fn nearest(&self, p: Vec3) -> Option<(Vec3, i64)> {
         match self {
-            Node::Leaf { points, .. } => {
-                points.iter().map(|pt| (*pt, pt.dist2(p))).min_by_key(|(_, d)| *d)
-            }
+            Node::Leaf { points, .. } => points
+                .iter()
+                .map(|pt| (*pt, pt.dist2(p)))
+                .min_by_key(|(_, d)| *d),
             Node::Branch { children, bbox } => {
                 let enclosing_bbox_id = partition_pt(p, bbox.center());
 

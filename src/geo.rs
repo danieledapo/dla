@@ -62,7 +62,10 @@ impl Bbox {
     }
 
     pub fn expand(&self, p: Vec3) -> Bbox {
-        Bbox { lower: self.lower.min(p), upper: self.upper.max(p) }
+        Bbox {
+            lower: self.lower.min(p),
+            upper: self.upper.max(p),
+        }
     }
 
     pub fn contains(&self, p: Vec3) -> bool {
@@ -89,11 +92,17 @@ impl Bbox {
     }
 
     pub fn scale(&self, f: i64) -> Self {
-        Bbox { lower: self.lower * f, upper: self.upper * f }
+        Bbox {
+            lower: self.lower * f,
+            upper: self.upper * f,
+        }
     }
 
     pub fn union(&self, b: &Bbox) -> Self {
-        Bbox { lower: self.lower.min(b.lower), upper: self.upper.max(b.upper) }
+        Bbox {
+            lower: self.lower.min(b.lower),
+            upper: self.upper.max(b.upper),
+        }
     }
 }
 
