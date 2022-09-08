@@ -2,7 +2,7 @@ use std::{
     collections::HashSet,
     fs::File,
     io::{self, BufWriter, Write},
-    path::PathBuf,
+    path::{Path, PathBuf},
     time,
 };
 
@@ -117,7 +117,7 @@ It contains {} particles and its bounding box goes from
     Ok(())
 }
 
-fn save_pov_scene(path: &PathBuf, Scene { dla, camera, lights }: &Scene) -> io::Result<()> {
+fn save_pov_scene(path: &Path, Scene { dla, camera, lights }: &Scene) -> io::Result<()> {
     let path = path.with_extension("pov");
     let mut out = BufWriter::new(File::create(&path)?);
 
@@ -211,7 +211,7 @@ render with a command like the following
     Ok(())
 }
 
-fn save_js_scene(path: &PathBuf, Scene { dla, camera, lights }: &Scene) -> io::Result<()> {
+fn save_js_scene(path: &Path, Scene { dla, camera, lights }: &Scene) -> io::Result<()> {
     let path = path.with_extension("js");
     let mut out = BufWriter::new(File::create(&path)?);
 
@@ -274,7 +274,7 @@ single object `DLA` that has the `particles` alongside a `camera` and `lights`.
     Ok(())
 }
 
-fn save_csv_scene(path: &PathBuf, Scene { dla, .. }: &Scene) -> io::Result<()> {
+fn save_csv_scene(path: &Path, Scene { dla, .. }: &Scene) -> io::Result<()> {
     let path = path.with_extension("csv");
     let mut out = BufWriter::new(File::create(&path)?);
 
