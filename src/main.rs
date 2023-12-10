@@ -34,7 +34,7 @@ struct App {
     scene_formats: Vec<SceneFormat>,
 
     /// Output filename where to save the scene.
-    #[clap(parse(from_os_str), default_value = "dla.pov")]
+    #[clap(default_value = "dla.pov")]
     output: PathBuf,
 }
 
@@ -65,7 +65,7 @@ struct Light {
 }
 
 fn main() -> io::Result<()> {
-    let args = App::from_args();
+    let args = App::parse();
 
     let seeds = vec![Vec3::new(0, 0, 0)];
     let mut dla = Dla::new(args.spawn_radius, args.attraction_radius, seeds).unwrap();
