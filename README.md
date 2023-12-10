@@ -42,4 +42,4 @@ $ cd ../r3d && cargo run --release --example particles < dla/dla.csv
 ![dla-2k-buzz](images/dla-small-buzz.png)
 
 [dla]: https://en.wikipedia.org/wiki/Diffusion-limited_aggregation
-[particles-buzz]: https://github.com/d-dorazio/r3d/blob/master/buzz/examples/particles.rs
+[particles-buzz]: https://github.com/danieledapo/r3d/blob/master/buzz/examples/particles.rs
